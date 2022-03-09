@@ -7,6 +7,7 @@ packageF("GenomicFeatures")
 packageF("AnnotationDbi")
 packageF("pheatmap")
 packageF("DESeq2")
+packageF("gridExtra")
 
 ResultsPath = "ResultsEstimateComparison"
 if(!ResultsPath %in% list.dirs(full.names = F, recursive = F)){
@@ -201,10 +202,10 @@ AnnotationsDF %<>% select(-Name)
 AnnoCol = list(Tissue = c("T1" = MoviePalettes$MoonRiseKingdomColors[2],
                           "T2" = MoviePalettes$MoonRiseKingdomColors[4],
                           "T3" = MoviePalettes$MoonRiseKingdomColors[10]),
-               Method = c("CETS" = MoviePalettes$MoonRiseKingdomColors[5],
-                          "MSP" = MoviePalettes$MoonRiseKingdomColors[1],
-                          "MGP" = MoviePalettes$MoonRiseKingdomColors[4],
-                          "Bisque" = MoviePalettes$MoonRiseKingdomColors[3]),
+               Method = c("CETS" = MoviePalettes$SpiritedAway[2],
+                          "MSP" = MoviePalettes$SpiritedAway[4],
+                          "MGP" = MoviePalettes$SpiritedAway[6],
+                          "Bisque" = MoviePalettes$SpiritedAway[7]),
                Fraction = c("Nuclear" = MoviePalettes$BugsLife[2],
                             "WholeTissue" = MoviePalettes$BugsLife[4]),
                OmicsType = c("BS" = MoviePalettes$LittleShopOfHorrors[1],
@@ -221,12 +222,19 @@ similarityPlotList <- sapply(CellTypes, function(CellType){
     gsub(paste0("_", CellType), "", x)
   })
   diag(Cor) <- NA
-  pheatmap(Cor, border_color = NA, na_col = "white", cluster_rows = T, cluster_cols = T,fontsize_number = 12, angle_col = 90,
-           annotation_col = AnnotationsDF, annotation_colors = AnnoCol, cutree_rows = 2, cutree_cols = 2,
-           scale = "none", method = "ward.D2", display_numbers = T, breaks=seq(-1, 1, length.out=100), main = CellType)
-})
+  p <-  pheatmap(Cor, border_color = NA, na_col = "white", cluster_rows = T, cluster_cols = T,fontsize_number = 12, angle_col = 90,
+                 annotation_row  = AnnotationsDF %>% select(Method, OmicsType),
+                 annotation_col  = AnnotationsDF %>% select(-Method, -OmicsType),
+                 annotation_colors = AnnoCol, cutree_rows = 2, cutree_cols = 2,
+                 scale = "none", method = "ward.D2", display_numbers = T,
+                 breaks=seq(-1, 1, length.out=100), main = CellType, filename = paste0(ResultsPath, CellType,
+                                                                                       "AllEstimateCor.pdf"),
+                 width = 8, height = 6)
+  p$gtable
+ 
+},simplify = F)
 
-ggarrange(similarityPlotList)
+
 
 
 pheatmap(Cor, border_color = NA, na_col = "white", cluster_rows = T, cluster_cols = T,fontsize_number = 12,
