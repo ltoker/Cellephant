@@ -321,6 +321,7 @@ FinalPlotData$Method <- factor(FinalPlotData$Method, levels = unique(FinalPlotDa
 
 ggplot(Overlaps %>% filter(Freq == 1), aes(CellType, logFC_AD, fill = CellType)) +
   theme_classic() +
+  labs(x = "") +
   geom_violin() +
   geom_boxplot(width = 0.2, fill = "white") +
   geom_hline(yintercept = 0, color = "red", lty = "dashed") +
@@ -336,12 +337,21 @@ ggplot(FinalPlotData, aes(CellType, LogFC, fill = CellType)) +
   scale_fill_manual(values = MoviePalettes$SpiritedAway[c(5,7,9, 1)]) +
   facet_wrap(~Method, scales = "free_y")
 
-ggplot(Overlaps %>% filter(Method == "CETs", Freq == 1), aes(CellType, -1*logFC_Neurons, fill = CellType)) +
+ggplot(Overlaps %>% filter(Method == "CETs", Freq = 1), aes(CellType, -1*logFC_Neurons, fill = CellType)) +
   theme_classic() +
+  labs(x = "", y = "logFC glia vs. neurons") +
   geom_violin() +
   geom_boxplot(width = 0.2, fill = "white") +
   geom_hline(yintercept = 0, color = "red", lty = "dashed") +
   scale_fill_manual(values = MoviePalettes$SpiritedAway[c(5,7,9, 1)]) +
   facet_wrap(~RegionType)
+
+ggplot(Overlaps %>% filter(Method == "CETs", Freq == 1), aes(CellType, -1*logFC_Neurons, fill = CellType)) +
+  theme_classic() +
+  labs(x = "", y = "logFC Glia vs. neurons") +
+  geom_violin() +
+  geom_boxplot(width = 0.2, fill = "white") +
+  geom_hline(yintercept = 0, color = "red", lty = "dashed") +
+  scale_fill_manual(values = MoviePalettes$SpiritedAway[c(5,7,9, 1)])
 
 save.image(paste0(ResultsPath, "CellTypeComparison.Rdata"))
