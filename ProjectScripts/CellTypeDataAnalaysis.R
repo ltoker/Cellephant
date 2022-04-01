@@ -18,6 +18,14 @@ ResultsPath = "ResultsMarziReanalysis/"
 packageF("ggpubr")
 packageF("GGally")
 
+ResultsPath = "ResultsEstimateComparison"
+if(!ResultsPath %in% list.dirs(full.names = F, recursive = F)){
+  dir.create(ResultsPath)
+}
+ResultsPath = paste0(ResultsPath, "/")
+
+ResultsPathMarzi = "ResultsMarziReanalysis/"
+
 
 if("CellTypeSpecificCounts.Rda" %in% list.files(path = "Data")){
   load("Data/CellTypeSpecificCounts.Rda")
@@ -115,11 +123,11 @@ CellTypeResult_Anno <- CellType_results %>%
 
 
 ##### load AD analysis objects ############################
-ResultsMarziCETs <- readRDS(paste0(ResultsPath, "MarziedgeR_CETs.Rds"))
-ResultsMarziMSP <- readRDS(paste0(ResultsPath, "MarziedgeR_MSP.Rds"))
-ResultsMarziMSPneuronal <- readRDS(paste0(ResultsPath, "MarziedgeR_MSPneuronAsFactor.Rds"))
-ResultsMarziNoCellCorrection <- readRDS(paste0(ResultsPath, "MArziedgeR_NoCellCorretction.Rds"))
-ResultsMarziCETsRandom <- readRDS(paste0(ResultsPath, "MarziedgeR_CETsRandom.Rds"))
+ResultsMarziCETs <- readRDS(paste0(ResultsPathMarzi, "MarziedgeR_CETs.Rds"))
+ResultsMarziMSP <- readRDS(paste0(ResultsPathMarzi, "MarziedgeR_MSP.Rds"))
+ResultsMarziMSPneuronal <- readRDS(paste0(ResultsPathMarzi, "MarziedgeR_MSPneuronAsFactor.Rds"))
+ResultsMarziNoCellCorrection <- readRDS(paste0(ResultsPathMarzi, "MArziedgeR_NoCellCorretction.Rds"))
+ResultsMarziCETsRandom <- readRDS(paste0(ResultsPathMarzi, "MarziedgeR_CETsRandom.Rds"))
 
 ###########################################################
 
@@ -195,7 +203,6 @@ AllResults$Direction <- AllResults$logFC_AD
 AllResults$Direction[AllResults$FDR_AD > 0.05] <- "NS"
 AllResults$Direction[AllResults$FDR_AD < 0.05 & AllResults$logFC_AD < 0] <- "Down"
 AllResults$Direction[AllResults$FDR_AD < 0.05 & AllResults$logFC_AD > 0] <- "Up"
-AllResults$Method
 
 Plot2 <- ggally_density(AllResults, aes_string("logFC_Neurons", "logFC_AD", fill = "..level..", color = "Direction", group = "Direction")) +
   theme_classic() +
@@ -275,7 +282,8 @@ Overlaps <- sapply(names(NOTT_2019.interactome[-c(1:4)]), function(CellType){
   PeaksGRanges[subjectHits(Overlap)] %>% data.frame() %>% mutate(CellType = CellType)
 }, simplify = F) %>% rbindlist() %>% data.frame()
 
-#Since multiple peaks cen overlap with the same enhancer/promoter region, filter to include only unique peaks for each region/method type
+#Since the same peak can overlap with the several enhancer/promoter regions, filter to include
+#each peak only once for each region/method/cell type
 #Note - the same region can be defined as enahancer/promoter for multiple cell types
 Overlaps %<>% mutate(FilterCol = paste(PeakName, Method, CellType, sep = ".")) %>%
   filter(!duplicated(FilterCol))
@@ -295,63 +303,124 @@ UniqeRegions <- Overlaps %>% filter(Method == "CETs") %>% droplevels() %>%
 names(UniqeRegions)[1] <- "PeakName"
 Overlaps <- merge(Overlaps, UniqeRegions, by = "PeakName")
 Overlaps$CellType <- factor(Overlaps$CellType, levels = c("Astrocyte", "Microglia", "Oligo", "Neuronal"))
+Overlaps %<>% mutate(logFC_Glia = -1*logFC_Neurons) #For easier comparison with AD
 
-ggplot(Overlaps %>% filter(RegionType == "enhancers", Freq == 1), aes(CellType, logFC_AD, fill = CellType)) +
+Overlaps$DirectionAD <- sapply(Overlaps$logFC_AD, function(x){
+  if(x < 0){
+    "Hypoacetylated"
+  } else {
+    "Hyperacetylated"
+  }
+})
+
+Overlaps$DirectionNeurons <- sapply(Overlaps$logFC_Neurons, function(x){
+  if(x < 0){
+    "Hypoacetylated"
+  } else {
+    "Hyperacetylated"
+  }
+})
+
+Overlaps$DirectionGlia <- sapply(Overlaps$logFC_Glia, function(x){
+  if(x < 0){
+    "Hypoacetylated"
+  } else {
+    "Hyperacetylated"
+  }
+})
+
+Prop <- Overlaps  %>% filter(Freq == 1, FDR_AD < 0.05) %>%
+  group_by(Method, CellType, DirectionAD) %>% summarise(n = n()) %>%
+  data.frame() %>% mutate(HypoDAR = "", HyperDAR = "", TotalDAR = NA)
+
+for(x in unique(Prop$Method)){
+  for(Direct in c("Hypoacetylated", "Hyperacetylated")){
+    Col = gsub("acetylated", "DAR", Direct)
+    Prop[Prop$Method==x & Prop$DirectionAD == Direct, Col] <- Prop %>% filter(Method == x, DirectionAD == Direct ) %>% .$n %>% sum 
+  }
+}
+
+for(x in unique(Prop$Method)){
+    Prop[Prop$Method==x, "TotalDAR"] <- Prop %>% filter(Method == x) %>% .$n %>% sum 
+}  
+
+Prop %<>% mutate(Proportion = n/TotalDAR,
+                 Proportion = signif(Proportion, digits = 2))
+
+Prop$ProportionText <- sapply(Prop$Proportion, function(x){
+  x <- as.character(x)
+  gsub("0*?0$", "", x)
+})
+
+Prop %<>% mutate(DirectionNumber = paste0(DirectionAD, "\n(", HypoDAR, HyperDAR, ")"))
+
+
+PlotNottDAR <- ggplot(Prop, aes(DirectionNumber, Proportion, fill = CellType)) +
   theme_classic() +
-  geom_violin() +
-  geom_boxplot(width = 0.2, fill = "white") +
-  geom_hline(yintercept = 0, color = "red", lty = "dashed") +
+  labs(x = "", y = "Proportion") +
+  geom_bar(stat = "identity") +
   scale_fill_manual(values = MoviePalettes$SpiritedAway[c(5,7,9, 1)]) +
-  facet_wrap(~Method)
+  geom_text(aes(label = n), position = position_stack(vjust = 0.5)) +
+  facet_wrap(~Method, scales = "free_x", nrow = 1)
 
 
-FinalPlotData <- Overlaps %>% filter(Freq == 1) %>% select(PeakName, Method, matches("AD"), RegionType, CellType) %>%
-  mutate(Method = paste0("AD_vs_Control/n", Method))
-
-names(FinalPlotData)[c(3, 4)] <- c("LogFC", "FDR")
-
-temp <- Overlaps %>% filter(Freq == 1, Method == "CETs") %>% select(PeakName, Method, matches("Neur"), RegionType, CellType) %>%
-  mutate(Method = "Glia_vs_Neuron/n") 
-
-names(temp)[c(3, 4)] <- c("LogFC", "FDR")
-temp %<>% mutate(LogFC = -1*LogFC)
-
-FinalPlotData <- rbind(FinalPlotData, temp)
-FinalPlotData$Method <- factor(FinalPlotData$Method, levels = unique(FinalPlotData$Method)[c(6:4, 1:3)])
-
-ggplot(Overlaps %>% filter(Freq == 1), aes(CellType, logFC_AD, fill = CellType)) +
+PlotNottAll <- ggplot(Overlaps %>% filter(Freq == 1), aes(CellType, logFC_AD, fill = CellType)) +
   theme_classic() +
   labs(x = "") +
   geom_violin() +
   geom_boxplot(width = 0.2, fill = "white") +
   geom_hline(yintercept = 0, color = "red", lty = "dashed") +
   scale_fill_manual(values = MoviePalettes$SpiritedAway[c(5,7,9, 1)]) +
-  facet_wrap(~Method)
+  facet_wrap(~Method, nrow = 1)
 
 
-ggplot(FinalPlotData, aes(CellType, LogFC, fill = CellType)) +
+ggarrange(PlotNottDAR, PlotNottAll, nrow = 2, common.legend = T)
+ggsave(paste0(ResultsPath, "NottValidation.pdf"), device = "pdf", width = 12, height = 6, dpi = 300)
+
+
+PropGlia_vs_Neuron <- Overlaps  %>% filter(Freq == 1, FDR_Neurons < 0.05, Method == "CETs") %>%
+  group_by(Method, CellType, DirectionGlia) %>% summarise(n = n()) %>%
+  data.frame() %>% mutate(HypoDAR = "", HyperDAR = "", TotalDAR = NA)
+
+for(Direct in c("Hypoacetylated", "Hyperacetylated")){
+  Col = gsub("acetylated", "DAR", Direct)
+  PropGlia_vs_Neuron[PropGlia_vs_Neuron$DirectionGlia == Direct, Col] <- PropGlia_vs_Neuron %>%
+    filter(DirectionGlia == Direct ) %>% .$n %>% sum 
+}
+
+PropGlia_vs_Neuron$TotalDAR <- PropGlia_vs_Neuron$n %>% sum 
+
+PropGlia_vs_Neuron %<>% mutate(Proportion = n/TotalDAR,
+                               Proportion = signif(Proportion, digits = 2))
+
+
+PropGlia_vs_Neuron %<>% mutate(DirectionNumber = paste0(DirectionGlia, "\n(", HypoDAR, HyperDAR, ")"))
+
+
+PlotNottGlia_vs_NeuronDAR <- ggplot(PropGlia_vs_Neuron, aes(DirectionNumber, Proportion, fill = CellType)) +
   theme_classic() +
-  geom_violin() +
-  geom_boxplot(width = 0.2, fill = "white") +
-  geom_hline(yintercept = 0, color = "red", lty = "dashed") +
+  labs(x = "", y = "Proportion") +
+  geom_bar(stat = "identity", show.legend = F) +
   scale_fill_manual(values = MoviePalettes$SpiritedAway[c(5,7,9, 1)]) +
-  facet_wrap(~Method, scales = "free_y")
+  geom_text(aes(label = n), position = position_stack(vjust = 0.5))
 
-ggplot(Overlaps %>% filter(Method == "CETs", Freq = 1), aes(CellType, -1*logFC_Neurons, fill = CellType)) +
+PlotNottGlia_vs_NeuronAll <-  ggplot(Overlaps %>% filter(Method == "CETs", Freq == 1), aes(CellType,logFC_Glia, fill = CellType)) +
   theme_classic() +
   labs(x = "", y = "logFC glia vs. neurons") +
   geom_violin() +
   geom_boxplot(width = 0.2, fill = "white") +
   geom_hline(yintercept = 0, color = "red", lty = "dashed") +
-  scale_fill_manual(values = MoviePalettes$SpiritedAway[c(5,7,9, 1)]) +
-  facet_wrap(~RegionType)
-
-ggplot(Overlaps %>% filter(Method == "CETs", Freq == 1), aes(CellType, -1*logFC_Neurons, fill = CellType)) +
-  theme_classic() +
-  labs(x = "", y = "logFC Glia vs. neurons") +
-  geom_violin() +
-  geom_boxplot(width = 0.2, fill = "white") +
-  geom_hline(yintercept = 0, color = "red", lty = "dashed") +
   scale_fill_manual(values = MoviePalettes$SpiritedAway[c(5,7,9, 1)])
+
+
+
+
+ggarrange(ggarrange(PlotNottGlia_vs_NeuronDAR, PlotNottGlia_vs_NeuronAll, ncol = 2, widths = c(1,1.5)),
+          ggarrange(PlotNottDAR, PlotNottAll, nrow = 2, common.legend = T), nrow = 2, heights = c(1, 2))
+
+ggsave(paste0(ResultsPath, "NottValidationCombined.pdf"), device = "pdf", width = 12, height = 8, dpi = 300)
+
+write.table(Prop %>% select(-ProportionText, -DirectionNumber), paste0(ResultsPath, "ADoverlapNott.txt"),
+            sep = "\t", row.names = F, col.names = T)
 
 save.image(paste0(ResultsPath, "CellTypeComparison.Rdata"))
