@@ -79,8 +79,6 @@ ggarrange(ggarrange(plotlist = RNA_TissueComparisonPlot$MGP, nrow = 1, common.le
 
 
 
-ggarrange(P3, P4, nrow = 2)
-
 ggsave(paste0(ResultsPath, "TScomparisonRNA.pdf"), device = "pdf",
        width = 14, height = 6, dpi = 300, useDingbats = F)
 
@@ -235,7 +233,3 @@ similarityPlotList <- sapply(CellTypes, function(CellType){
 },simplify = F)
 
 
-
-
-pheatmap(Cor, border_color = NA, na_col = "white", cluster_rows = T, cluster_cols = T,fontsize_number = 12,
-         scale = "none", method = "ward.D2", display_numbers = T, breaks=seq(-1, 1, length.out=100), main = CellType)
