@@ -20,6 +20,9 @@ AllData <- readRDS("Data/AllEstimatesAndMeta.Rds")
 
 AllData %<>% mutate(across(contains("MGP"), rescale, c(0,1)))
 
+SuppTable2 <- AllData %>% select(BioBankID, Cohort, Condition, Age, Sex, PMI, RIN, Resequenced)
+write.table(SuppTable2, paste0(ResultsPath, "SuppTable2.tsv"), sep = "\t", row.names = F, col.names = T)
+
 #AllData <- merge(AllData, IHC_Microglia, by = "BioBankID", all.x = T, sort = F )
 
 AllData_long <- pivot_longer(AllData, cols = matches("^T._"), names_sep = "_",
