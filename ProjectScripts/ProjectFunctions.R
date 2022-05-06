@@ -7,6 +7,15 @@ packageF("GenomicRanges")
 packageF("annotatr")
 packageF("readr")
 
+
+Count2CPM <- function(countData){
+  apply(countData, 2, function(smp){
+    TotalCount = sum(smp)
+    (10^6)*smp/TotalCount
+  })
+}
+
+
 packageF("TxDb.Hsapiens.UCSC.hg19.knownGene")
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
