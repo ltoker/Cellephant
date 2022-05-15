@@ -1,4 +1,5 @@
-This code can be used to reproduce the analyses, figures and tables of the manuscript "Not every estimate counts" by Toker et al.
+This code can be used to reproduce the analyses, figures and tables of the manuscript
+# "Not every estimate counts" by Toker et al.
 
 "AnalysisFrame.R" script runs the individual steps and provides brief explanation about each step.
 
